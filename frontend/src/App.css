@@ -1,0 +1,435 @@
+
+/* =========================================
+   GLOBAL STYLES
+========================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+}
+
+
+/* =========================================
+   REGISTER PAGE
+========================================= */
+
+.register-page {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 30px 15px;
+    background: linear-gradient(
+        135deg,
+        #dbeafe,
+        #eef2ff,
+        #e0e7ff
+    );
+}
+
+.register-card {
+    width: 100%;
+    max-width: 480px;
+    background: white;
+    padding: 35px;
+    border-radius: 15px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.register-header {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.register-header h1 {
+    color: #1e3a8a;
+    font-size: 29px;
+    margin-bottom: 8px;
+}
+
+.register-header p {
+    color: #334155;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.register-header span {
+    color: #64748b;
+    font-size: 13px;
+}
+
+
+/* =========================================
+   AUTHENTICATION PAGE
+   REGISTER / LOGIN / ADD EMPLOYEE
+========================================= */
+
+.auth-container {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 30px 15px;
+    background: linear-gradient(
+        135deg,
+        #dbeafe,
+        #eef2ff,
+        #e0e7ff
+    );
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 480px;
+    padding: 35px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.auth-card h2 {
+    text-align: center;
+    color: #1e3a8a;
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.auth-card h3 {
+    text-align: center;
+    color: #334155;
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+
+.auth-card > p {
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 25px;
+}
+
+
+/* =========================================
+   FORM GROUPS
+========================================= */
+
+.form-group {
+    margin-bottom: 19px;
+}
+
+.form-group label {
+    display: block;
+    color: #334155;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    font-size: 14px;
+    outline: none;
+    background: white;
+    color: #263247;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 5px rgba(37, 99, 235, 0.25);
+}
+
+.form-group small {
+    display: block;
+    color: #dc2626;
+    font-size: 12px;
+    margin-top: 6px;
+}
+
+
+/* =========================================
+   BUTTON GROUP
+========================================= */
+
+.button-group {
+    display: flex;
+    gap: 12px;
+}
+
+.button-group button {
+    flex: 1;
+    padding: 13px;
+    border: none;
+    border-radius: 7px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.register-btn {
+    background: #2563eb;
+    color: white;
+}
+
+.register-btn:hover {
+    background: #1d4ed8;
+}
+
+.reset-btn {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.reset-btn:hover {
+    background: #cbd5e1;
+}
+
+
+/* =========================================
+   AUTH BUTTONS
+========================================= */
+
+.auth-card button {
+    width: 100%;
+    padding: 13px;
+    margin-top: 12px;
+    border: none;
+    border-radius: 7px;
+    background: #2563eb;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.auth-card button:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+
+.auth-card button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* =========================================
+   ADD EMPLOYEE FORM
+========================================= */
+
+.employee-form-card {
+    max-width: 550px;
+}
+
+.employee-form-card h2 {
+    margin-bottom: 10px;
+}
+
+
+/* =========================================
+   RIGHT SIDE SUCCESS / ERROR NOTIFICATION
+========================================= */
+
+.success-alert,
+.error-alert {
+    position: fixed;
+    top: 15px;
+    right: 20px;
+    z-index: 9999;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    width: 350px;
+    min-height: 90px;
+    padding: 16px 18px;
+
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.12);
+
+    animation: slideIn 0.5s ease forwards;
+}
+
+/* Success Alert */
+
+.success-alert {
+    border-left: 5px solid #22c55e;
+}
+
+/* Error Alert */
+
+.error-alert {
+    border-left: 5px solid #ef4444;
+}
+
+/* Alert Text */
+
+.success-alert .success-text,
+.error-alert .error-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.success-alert .success-text h3,
+.error-alert .error-text h3 {
+    margin: 0 0 5px;
+    font-size: 16px;
+}
+
+.success-alert .success-text h3 {
+    color: #166534;
+}
+
+.error-alert .error-text h3 {
+    color: #b91c1c;
+}
+
+.success-alert .success-text p,
+.error-alert .error-text p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #64748b;
+}
+
+/* Success and Error Icons */
+
+.success-alert .success-icon,
+.error-alert .error-icon {
+    width: 35px;
+    height: 35px;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.success-alert .success-icon {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.error-alert .error-icon {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* Close Button */
+
+.success-alert .close-btn,
+.error-alert .close-btn {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px;
+
+    padding: 0 !important;
+    margin: 0 0 0 auto !important;
+
+    flex: 0 0 24px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: transparent !important;
+    border: none !important;
+    border-radius: 50%;
+
+    color: #64748b !important;
+    font-size: 22px !important;
+    line-height: 1;
+
+    cursor: pointer;
+}
+
+.success-alert .close-btn:hover,
+.error-alert .close-btn:hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+}
+
+/* =========================================
+   SLIDE-IN ANIMATION
+========================================= */
+
+@keyframes slideIn {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* =========================================
+   LOGIN / REGISTER LINK
+========================================= */
+
+.login-link {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 14px;
+    color: #555;
+}
+
+.login-link a {
+    color: #2563eb;
+    font-weight: 600;
+    text-decoration: none;
+    margin-left: 4px;
+}
+
+.login-link a:hover {
+    text-decoration: underline;
+    color: #1d4ed8;
+}
+
+/* =========================================
+   MOBILE RESPONSIVE
+========================================= */
+
+@media (max-width: 500px) {
+
+    .register-card,
+    .auth-card {
+        padding: 25px 20px;
+    }
+
+    .register-header h1 {
+        font-size: 25px;
+    }
+}
+
+@media (max-width: 450px) {
+
+    .success-alert,
+    .error-alert {
+        width: calc(100% - 30px);
+        right: 15px;
+        top: 15px;
+    }
+
+    .button-group {
+        flex-direction: column;
+    }
+}
