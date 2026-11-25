@@ -59,3 +59,33 @@ class Attendance(Base):
     status = Column(String(20), nullable=False, default="Absent")
 
     created_at = Column(DateTime, server_default=func.now())
+
+
+# Holiday table - Tamil Nadu Government Public Holidays
+class Holiday(Base):
+    __tablename__ = "holidays"
+
+    __table_args__ = {"schema": "employee"}
+
+    holiday_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    holiday_date = Column(
+        Date,
+        nullable=False,
+        unique=True
+    )
+
+    holiday_name = Column(
+        String(150),
+        nullable=False
+    )
+
+    holiday_type = Column(
+        String(30),
+        nullable=False,
+        default="Public"
+    )

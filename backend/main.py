@@ -1,4 +1,6 @@
 
+from routers.reports import router as reports_router
+
 from fastapi import (
     FastAPI,
     Depends,
@@ -33,6 +35,11 @@ from auth import (
     verify_password,
     create_access_token,
     verify_access_token
+)
+
+from attendance_scheduler import (
+    start_attendance_scheduler,
+    stop_attendance_scheduler
 )
 
 app = FastAPI()
@@ -265,6 +272,11 @@ def get_current_user(
         )
 
     return user
+
+app.include_router(
+    reports_router,
+    dependencies=[Depends(get_current_user)]
+)
 
 # --------------------------------------------------
 # GET LOGGED-IN USER DETAILS
@@ -836,3 +848,12 @@ def logout_user(
     return {
         "message": "Logged out successfully. Attendance updated."
     }
+
+@app.on_event("startup")
+def start_scheduler():
+    start_attendance_scheduler()
+
+
+@app.on_event("shutdown")
+def stop_scheduler():
+    stop_attendance_scheduler()
