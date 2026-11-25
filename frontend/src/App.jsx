@@ -12,8 +12,10 @@ import Register from "./components/Register";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import EmployeeManagement from "./components/EmployeeManagement";
+import Attendance from "./components/Attendance";
 import ProtectedRoute from "./components/ProtectedRoute";
-
+import AddEmployee from "./components/AddEmployee";
+import EditEmployee from "./components/EditEmployee";
 
 function App() {
 
@@ -57,6 +59,36 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <EmployeeManagement />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* Attendance Management */}
+                <Route
+                    path="/attendance"
+                    element={
+                        <ProtectedRoute>
+                            <Attendance />
+                        </ProtectedRoute>
+                    }
+                />
+
+                    {/* Add Employee */}
+                <Route
+                    path="/add-employee"
+                    element={
+                        <ProtectedRoute>
+                            <AddEmployee />
+                        </ProtectedRoute>
+                    }
+                />
+
+                      {/* Add Employee */}
+                <Route
+                    path="/edit-employee"
+                    element={
+                        <ProtectedRoute>
+                            <EditEmployee />
                         </ProtectedRoute>
                     }
                 />

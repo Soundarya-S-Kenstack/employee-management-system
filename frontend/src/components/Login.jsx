@@ -47,7 +47,15 @@ const onSubmit = async (data) => {
         }
 
         // Store authentication token
-        sessionStorage.setItem("access_token", result.access_token);
+        // Check and store authentication token
+        
+if (!result.access_token) {
+    throw new Error("Login succeeded, but access token was not received.");
+}
+
+sessionStorage.setItem("access_token", result.access_token);
+
+console.log("Login token saved:", !!sessionStorage.getItem("access_token"));
 
         // Show success alert
         setShowSuccess(true);

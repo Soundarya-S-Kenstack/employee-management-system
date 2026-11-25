@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import "../EmployeeManagement.css";
+import "../Dashboard.css";
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -25,6 +26,7 @@ function EmployeeManagement() {
     const [userName, setUserName] = useState("Soundarya");
     const [employees, setEmployees] = useState([]);
     const [departments, setDepartments] = useState([]);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     const [search, setSearch] = useState("");
     const [department, setDepartment] = useState("");
@@ -55,6 +57,7 @@ function EmployeeManagement() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [employeeToDelete, setEmployeeToDelete] = useState(null);
 
+    const location = useLocation();
 
     // Redirect to login if user is not authenticated.
     useEffect(() => {
@@ -101,6 +104,19 @@ function EmployeeManagement() {
         fetchUser();
 
     }, [token, navigate]);
+
+    useEffect(() => {
+
+    if (location.state?.success) {
+        setSuccess(location.state.success);
+
+        navigate(location.pathname, {
+            replace: true,
+            state: null
+        });
+    }
+
+}, [location, navigate]);
 
 
     // Fetch employees whenever search, filters or page changes.
@@ -168,39 +184,18 @@ function EmployeeManagement() {
     }, [token, search, department, status, page, navigate]);
 
 
-    // Open the form for adding a new employee.
-    const handleAddEmployee = () => {
-
-        setEditingEmployee(null);
-        setFormData(initialFormData);
-        setError("");
-        setSuccess("");
-        setShowForm(true);
-
-    };
-
+   const handleAddEmployee = () => {
+    navigate("/add-employee");
+};
 
     // Open the form with existing employee details.
-    const handleEditEmployee = (employee) => {
-
-        setEditingEmployee(employee);
-
-        setFormData({
-            full_name: employee.full_name || "",
-            email: employee.email || "",
-            mobile: employee.mobile || "",
-            department: employee.department || "",
-            designation: employee.designation || "",
-            joining_date: employee.joining_date || "",
-            status: employee.status || "Active"
-        });
-
-        setError("");
-        setSuccess("");
-        setShowForm(true);
-
-    };
-
+const handleEditEmployee = (employee) => {
+    navigate("/edit-employee", {
+        state: {
+            employee: employee
+        }
+    });
+};
 
     // Update form field values.
     const handleInputChange = (event) => {
@@ -224,8 +219,6 @@ function EmployeeManagement() {
         setError("");
 
     };
-
-
 
 // Add a new employee or update an existing employee.
 const handleSubmit = async (event) => {
@@ -512,13 +505,31 @@ const confirmPermanentDelete = async () => {
     };
 
 
-    // Logout.
-    const handleLogout = () => {
+// Confirm and process logout.
+const handleLogout = async () => {
+
+    try {
+
+        await fetch(`${API_URL}/logout`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+
+    } catch (error) {
+
+        console.error("Logout request failed:", error);
+
+    } finally {
 
         sessionStorage.removeItem("access_token");
+        setShowLogoutConfirm(false);
         navigate("/login", { replace: true });
 
-    };
+    }
+
+};
 
 
     return (
@@ -526,12 +537,11 @@ const confirmPermanentDelete = async () => {
         <div className="dashboard-container">
 
             {/* Sidebar */}
-            <Sidebar
-                userName={userName}
-                activePage="manage"
-                onLogout={handleLogout}
-            />
-
+         <Sidebar
+    userName={userName}
+    activePage="manage"
+    onLogout={() => setShowLogoutConfirm(true)}
+/>
 
             {/* Main Content */}
             <main className="employee-management-main">
@@ -557,13 +567,13 @@ const confirmPermanentDelete = async () => {
                             <h4>{userName}</h4>
                         </div>
 
-                        <button
-                            type="button"
-                            className="header-logout"
-                            onClick={handleLogout}
-                        >
-                            Logout
-                        </button>
+<button
+    type="button"
+    className="header-logout"
+    onClick={() => setShowLogoutConfirm(true)}
+>
+    Logout
+</button>
 
                     </div>
 
@@ -1300,8 +1310,53 @@ const confirmPermanentDelete = async () => {
 
                 )}
 
-
             </main>
+
+            {/* Logout Confirmation Dialog */}
+            {showLogoutConfirm && (
+
+                <div className="logout-overlay">
+
+                    <div
+                        className="logout-dialog"
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="logout-dialog-title"
+                    >
+
+                        <h2 id="logout-dialog-title">
+                            Confirm Logout
+                        </h2>
+
+                        <p>
+                            Are you sure you want to log out of your account?
+                        </p>
+
+                        <div className="logout-actions">
+
+                            <button
+                                type="button"
+                                className="cancel-btn"
+                                onClick={() => setShowLogoutConfirm(false)}
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="button"
+                                className="confirm-btn"
+                                onClick={handleLogout}
+                            >
+                                Yes, Logout
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            )}
 
         </div>
 

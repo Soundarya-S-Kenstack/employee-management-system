@@ -46,6 +46,7 @@ function Dashboard() {
     const [recentEmployees, setRecentEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     const token = sessionStorage.getItem("access_token");
 
@@ -330,13 +331,12 @@ function Dashboard() {
                         <div className="user-details">
                             <h4>{user?.full_name}</h4>
                         </div>
-
-                        <button
-                            className="header-logout"
-                            onClick={handleLogout}
-                        >
-                            Logout
-                        </button>
+<button
+    className="header-logout"
+    onClick={() => setShowLogoutConfirm(true)}
+>
+    Logout
+</button>
 
                     </div>
 
@@ -356,14 +356,6 @@ function Dashboard() {
                                 Overview of your organization's employees
                             </p>
                         </div>
-
-                        <button
-                            type="button"
-                            className="add-employee-btn"
-                            onClick={handleManageEmployees}
-                        >
-                            + Add Employee
-                        </button>
 
                     </div>
 
@@ -589,9 +581,35 @@ function Dashboard() {
                 </section>
 
             </main>
+            {showLogoutConfirm && (
+    <div className="logout-overlay">
+        <div className="logout-dialog">
+            <h2>Confirm Logout</h2>
+
+            <p>Are you sure you want to log out of your account?</p>
+
+            <div className="logout-actions">
+                <button
+                    className="cancel-btn"
+                    onClick={() => setShowLogoutConfirm(false)}
+                >
+                    Cancel
+                </button>
+
+                <button
+                    className="confirm-btn"
+                    onClick={handleLogout}
+                >
+                    Yes, Logout
+                </button>
+            </div>
+        </div>
+    </div>
+)}
 
         </div>
 
+    
     );
 
 }

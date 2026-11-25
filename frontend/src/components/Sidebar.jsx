@@ -17,7 +17,7 @@ function Sidebar({ userName = "Soundarya", activePage, onLogout }) {
             {/* Navigation */}
             <nav className="sidebar-nav">
 
-                <p className="sidebar-heading">DASHBOARD</p>
+                <p className="sidebar-heading">MAIN MENU</p>
 
                 <Link
                     to="/dashboard#employee-overview"
@@ -26,7 +26,7 @@ function Sidebar({ userName = "Soundarya", activePage, onLogout }) {
                     }`}
                 >
                     <span>♙</span>
-                    Employees
+                    Dashboard
                 </Link>
 
                 <Link
@@ -36,7 +36,20 @@ function Sidebar({ userName = "Soundarya", activePage, onLogout }) {
                     }`}
                 >
                     <span>＋</span>
-                    Manage Employees
+                    Employees
+                </Link>
+
+                {/* Attendance Section */}
+                <p className="sidebar-heading">ATTENDANCE</p>
+
+                <Link
+                    to="/attendance"
+                    className={`sidebar-link ${
+                        activePage === "attendance" ? "active" : ""
+                    }`}
+                >
+                    <span>▣</span>
+                    Attendance
                 </Link>
 
             </nav>
