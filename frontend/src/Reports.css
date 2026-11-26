@@ -1,10 +1,30 @@
+/* Reports Page Layout */
+.reports-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    min-height: 100vh;
+    width: 100%;
+    background: #f7f8fc;
+}
 
+/* Sidebar */
+.reports-layout > .sidebar {
+    flex: 0 0 235px;
+    width: 235px;
+    min-height: 100vh;
+    height: auto;
+}
+
+/* Main Content */
 .reports-main {
     flex: 1;
     min-width: 0;
+    width: calc(100% - 235px);
     padding: 30px;
     background: #f7f8fc;
     min-height: 100vh;
+    box-sizing: border-box;
 }
 
 .reports-header {
@@ -157,6 +177,69 @@
     padding: 12px 16px;
     border-radius: 7px;
     margin-bottom: 18px;
+}
+
+/* Logout confirmation modal */
+.logout-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.logout-modal {
+    width: 360px;
+    max-width: 90%;
+    padding: 25px;
+    background: #ffffff;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+}
+
+.logout-modal h3 {
+    margin: 0 0 12px;
+    color: #222222;
+    font-size: 20px;
+}
+
+.logout-modal p {
+    margin-bottom: 22px;
+    color: #666666;
+    font-size: 14px;
+}
+
+.logout-modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+.logout-modal-actions button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.logout-cancel-btn {
+    background: #e5e7eb;
+    color: #333333;
+}
+
+.logout-confirm-btn {
+    background: #dc3545;
+    color: #ffffff;
+}
+
+.logout-modal-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 @media (max-width: 900px) {

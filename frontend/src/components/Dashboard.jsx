@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import Sidebar from "./Sidebar";
 import "../Dashboard.css";
+const API_URL = "http://127.0.0.1:8000";
 
 import {
     Chart as ChartJS,
@@ -144,15 +145,39 @@ function Dashboard() {
     }, [token, navigate]);
 
     // Logout
-    const handleLogout = () => {
+  const handleLogout = async () => {
+    const token = sessionStorage.getItem("access_token");
 
-        sessionStorage.removeItem("access_token");
+    if (!token) {
+        navigate("/login");
+        return;
+    }
 
-        navigate("/login", {
-            replace: true
+    try {
+        const response = await fetch(`${API_URL}/logout`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
         });
 
-    };
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            alert(data.detail || "Unable to logout.");
+            return;
+        }
+
+        console.log(data.message);
+
+        sessionStorage.removeItem("access_token");
+        navigate("/login");
+
+    } catch (error) {
+        console.error("Logout error:", error);
+        alert("Unable to connect to the server.");
+    }
+};
 
     // Navigate to Employee Management
     const handleManageEmployees = () => {

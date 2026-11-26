@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 from math import ceil
 
 from database import get_db
-from models import User, Employee, Attendance
+from models import User, Employee, Attendance, Holiday
 
 from schemas import (
     RegisterSchema,
@@ -43,6 +43,8 @@ from attendance_scheduler import (
 )
 
 app = FastAPI()
+
+app.include_router(reports_router)
 
 # --------------------------------------------------
 # CORS CONFIGURATION
@@ -752,8 +754,13 @@ def get_attendance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    selected_date = attendance_date or get_indian_time().date()
+    # Get today's date using Indian Standard Time
+    today = get_indian_time().date()
 
+    # Use the selected date or today's date
+    selected_date = attendance_date or today
+
+    # Get all active employees and their attendance for the selected date
     records = db.query(
         Employee,
         Attendance
@@ -770,24 +777,161 @@ def get_attendance(
         Employee.employee_id
     ).all()
 
-    return [
-        {
-            "attendance_id": attendance.attendance_id if attendance else None,
+    attendance_list = []
+
+    # Check whether the selected previous date is a public holiday
+    selected_date_is_public_holiday = (
+        is_public_holiday(db, selected_date)
+        if selected_date < today
+        else False
+    )
+
+    for employee, attendance in records:
+
+        status = "Not Marked"
+
+        check_in = attendance.check_in if attendance else None
+        check_out = attendance.check_out if attendance else None
+
+        # ------------------------------------------
+        # TODAY'S ATTENDANCE
+        # ------------------------------------------
+
+        if selected_date == today:
+
+            if attendance and attendance.check_in:
+
+                # Employee has logged out
+                if attendance.check_out:
+
+                    start = datetime.combine(
+                        selected_date,
+                        attendance.check_in
+                    )
+
+                    end = datetime.combine(
+                        selected_date,
+                        attendance.check_out
+                    )
+
+                    # Handle overnight duration
+                    if end < start:
+                        end += timedelta(days=1)
+
+                    working_duration = end - start
+
+                    # Four hours or less = Half Day
+                    if working_duration <= timedelta(hours=4):
+                        status = "Half Day"
+
+                    # Check-in after 09:45 = Late
+                    elif attendance.check_in.replace(
+                        second=0,
+                        microsecond=0
+                    ) > time(9, 45):
+                        status = "Late"
+
+                    else:
+                        status = "Present"
+
+                # Employee has logged in but not logged out
+                else:
+
+                    if attendance.check_in.replace(
+                        second=0,
+                        microsecond=0
+                    ) > time(9, 45):
+                        status = "Late"
+
+                    else:
+                        status = "Present"
+
+            # Employee has not logged in
+            else:
+                status = "Not Marked"
+
+        # ------------------------------------------
+        # FUTURE DATE
+        # ------------------------------------------
+
+        elif selected_date > today:
+            status = "Not Marked"
+
+        # ------------------------------------------
+        # PREVIOUS DATE
+        # ------------------------------------------
+
+        elif attendance:
+
+            # Preserve previously saved attendance status
+            status = attendance.status
+
+        # Previous Saturday
+        elif selected_date.weekday() == 5:
+            status = "Saturday"
+
+        # Previous Sunday
+        elif selected_date.weekday() == 6:
+            status = "Sunday"
+
+        # Previous Tamil Nadu public holiday
+        elif selected_date_is_public_holiday:
+            status = "Holiday"
+
+        # Previous working date without attendance
+        else:
+            status = "Absent"
+
+        # ------------------------------------------
+        # RESPONSE DATA
+        # ------------------------------------------
+
+        attendance_list.append({
+            "attendance_id": (
+                attendance.attendance_id
+                if attendance else None
+            ),
             "employee_id": employee.employee_id,
             "full_name": employee.full_name,
             "department": employee.department,
-            "check_in": attendance.check_in if attendance else None,
-            "check_out": attendance.check_out if attendance else None,
-            "status": attendance.status if attendance else "Not Marked"
-        }
-        for employee, attendance in records
-    ]
+            "designation": employee.designation,
+            "attendance_date": selected_date.isoformat(),
+            "check_in": str(check_in) if check_in else None,
+            "check_out": str(check_out) if check_out else None,
+            "status": status
+        })
+
+    return attendance_list
+
+
+# ------------------------------------------
+# GET CURRENT INDIAN DATE AND TIME
+# ------------------------------------------
 
 def get_indian_time():
     return datetime.now(ZoneInfo("Asia/Kolkata"))
 
 
+# ------------------------------------------
+# CHECK TAMIL NADU PUBLIC HOLIDAYS
+# ------------------------------------------
+
+def is_public_holiday(db: Session, check_date: Date):
+
+    holiday = db.query(Holiday).filter(
+        Holiday.holiday_date == check_date,
+        Holiday.holiday_type == "Public"
+    ).first()
+
+    return holiday is not None
+
+
+# ------------------------------------------
+# CALCULATE ATTENDANCE STATUS
+# ------------------------------------------
+
 def calculate_attendance_status(check_in, check_out):
+
     if not check_in or not check_out:
         return None
 
@@ -796,10 +940,12 @@ def calculate_attendance_status(check_in, check_out):
         - datetime.combine(datetime.today(), check_in)
     )
 
+    if working_duration < timedelta(0):
+        working_duration += timedelta(days=1)
+
     if working_duration <= timedelta(hours=4):
         return "Half Day"
 
-    # Retain the original Present or Late status
     return None
 
 @app.post("/logout")
@@ -807,48 +953,95 @@ def logout_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    employee = db.query(Employee).filter(
-    func.lower(Employee.email) == current_user.email.lower(),
-    func.lower(Employee.status) == "active",
-    Employee.is_deleted.is_(False)
-).first()
+    try:
+        # 1. Find the matching active employee
+        employee = db.query(Employee).filter(
+            func.lower(func.trim(Employee.email)) ==
+            func.lower(func.trim(current_user.email)),
+            func.lower(func.trim(Employee.status)) == "active",
+            Employee.is_deleted.is_(False)
+        ).first()
 
-    if employee:
+        if not employee:
+            raise HTTPException(
+                status_code=404,
+                detail="Active employee account not found."
+            )
+
+        # 2. Get current Indian date and time
         now = get_indian_time()
         today = now.date()
 
+        # 3. Find today's attendance record
         attendance = db.query(Attendance).filter(
             Attendance.employee_id == employee.employee_id,
             Attendance.attendance_date == today
         ).first()
 
-        if attendance and attendance.check_in and not attendance.check_out:
+        if not attendance:
+            return {
+                "message": "No attendance record found for today."
+            }
 
-            check_out_time = now.time().replace(
-                tzinfo=None,
-                microsecond=0
-            )
+        # 4. Check whether employee has checked in
+        if not attendance.check_in:
+            return {
+                "message": "No check-in record found for today."
+            }
 
-            attendance.check_out = check_out_time
+        # 5. Prevent duplicate checkout
+        if attendance.check_out:
+            return {
+                "message": "You have already logged out.",
+                "employee_id": employee.employee_id,
+                "check_in": str(attendance.check_in),
+                "check_out": str(attendance.check_out),
+                "status": attendance.status
+            }
 
-            # Calculate working duration
-            duration = (
-                datetime.combine(today, check_out_time)
-                - datetime.combine(today, attendance.check_in)
-            )
+        # 6. Save checkout time
+        check_out_time = now.time().replace(
+            tzinfo=None,
+            microsecond=0
+        )
 
-            # Four hours or less = Half Day
-            if duration <= timedelta(hours=4):
-                attendance.status = "Half Day"
+        attendance.check_out = check_out_time
 
-            # More than four hours = retain Present or Late
+        # 7. Calculate working duration
+        duration = (
+            datetime.combine(today, check_out_time)
+            - datetime.combine(today, attendance.check_in)
+        )
 
-            db.commit()
+        # 8. Four hours or less = Half Day
+        if duration <= timedelta(hours=4):
+            attendance.status = "Half Day"
 
-    return {
-        "message": "Logged out successfully. Attendance updated."
-    }
+        # 9. Save changes
+        db.commit()
+        db.refresh(attendance)
 
+        return {
+            "message": "Logged out successfully. Attendance updated.",
+            "employee_id": employee.employee_id,
+            "check_in": str(attendance.check_in),
+            "check_out": str(attendance.check_out),
+            "status": attendance.status
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        db.rollback()
+        print("Logout attendance error:", str(e))
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to update attendance during logout."
+        )
+
+    
 @app.on_event("startup")
 def start_scheduler():
     start_attendance_scheduler()

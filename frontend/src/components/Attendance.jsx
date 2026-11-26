@@ -43,6 +43,7 @@ function Attendance() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    
 
     // Fetch logged-in user details
     useEffect(() => {
@@ -191,6 +192,14 @@ const handleLogout = async () => {
     const halfDayCount = employees.filter(
         emp => emp.status === "Half Day"
     ).length;
+
+    const holidayCount = employees.filter(
+    emp => emp.status === "Holiday"
+).length;
+
+const notMarkedCount = employees.filter(
+    emp => emp.status === "Not Marked"
+).length;
 
     // Search Employees
     const filteredEmployees = employees.filter(emp =>

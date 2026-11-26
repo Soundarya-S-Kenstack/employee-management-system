@@ -1,7 +1,8 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import "../Reports.css";
+import "../Sidebar.css"; 
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -28,6 +29,9 @@ function Reports() {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [user, setUser] = useState(null);
+const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+const navigate = useNavigate();
 
     const token = sessionStorage.getItem("access_token");
 
@@ -45,38 +49,50 @@ function Reports() {
         return params.toString();
     };
 
-    const generateReport = async () => {
-        if (fromDate && toDate && fromDate > toDate) {
-            setError("From Date cannot be later than To Date.");
-            return;
-        }
+    
+const generateReport = async () => {
+    if (fromDate && toDate && fromDate > toDate) {
+        setError("From Date cannot be later than To Date.");
+        return;
+    }
 
-        setLoading(true);
-        setError("");
+    if (!token) {
+        setError("Session expired. Please log in again.");
+        return;
+    }
 
-        try {
-            const response = await fetch(
-                `${API_URL}/reports/data?${buildQuery()}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+    setLoading(true);
+    setError("");
+
+    try {
+        const response = await fetch(
+            `${API_URL}/reports/data?${buildQuery()}`,
+            {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`
                 }
-            );
-
-            if (!response.ok) {
-                throw new Error("Unable to generate report.");
             }
+        );
 
-            const data = await response.json();
-            setRows(data.rows || []);
-        } catch (err) {
-            setError(err.message);
-            setRows([]);
-        } finally {
-            setLoading(false);
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(
+                data.detail || `Server error: ${response.status}`
+            );
         }
-    };
+
+        setRows(data.rows || []);
+
+    } catch (err) {
+        console.error("Report generation error:", err);
+        setError(err.message);
+        setRows([]);
+    } finally {
+        setLoading(false);
+    }
+};
 
     const downloadReport = async (format) => {
         if (fromDate && toDate && fromDate > toDate) {
@@ -128,17 +144,90 @@ function Reports() {
         setError("");
     };
 
+    useEffect(() => {
+    const fetchUser = async () => {
+        try {
+            const token = sessionStorage.getItem("access_token");
+
+            const response = await fetch(`${API_URL}/auth/me`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 401) {
+                sessionStorage.removeItem("access_token");
+                navigate("/login");
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch user details");
+            }
+
+            const data = await response.json();
+            setUser(data);
+
+        } catch (error) {
+            console.error("Error fetching user:", error);
+        }
+    };
+
+    fetchUser();
+}, [navigate]);
+
+const handleLogout = async () => {
+    try {
+        const token = sessionStorage.getItem("access_token");
+
+        await fetch(`${API_URL}/logout`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+    } catch (error) {
+        console.error("Logout error:", error);
+    } finally {
+        sessionStorage.removeItem("access_token");
+        navigate("/login");
+    }
+};
+
     return (
-        <div className="dashboard-layout">
+       <div className="reports-layout">
             <Sidebar activePage="reports" />
 
             <main className="reports-main">
-                <div className="reports-header">
-                    <div>
-                        <h1>Reports & Analytics</h1>
-                        <p>Generate and download employee and attendance reports.</p>
-                    </div>
-                </div>
+                {/* Main Header */}
+<header className="dashboard-header attendance-main-header">
+
+    <div className="attendance-title">
+        <h1>Reports</h1>
+        <p>Generate and download employee and attendance reports.</p>
+    </div>
+
+    <div className="user-profile">
+
+        <div className="user-avatar">
+            {user?.full_name?.charAt(0).toUpperCase() || "U"}
+        </div>
+
+        <div className="user-details">
+            <h4>{user?.full_name || "Loading..."}</h4>
+        </div>
+
+        <button
+            type="button"
+            className="header-logout"
+            onClick={() => setShowLogoutConfirm(true)}
+        >
+            Logout
+        </button>
+
+    </div>
+
+</header>
 
                 <div className="reports-filter-card">
                     <h3>Report Filters</h3>
@@ -288,6 +377,33 @@ function Reports() {
                         </table>
                     </div>
                 </div>
+                {showLogoutConfirm && (
+    <div className="logout-modal-overlay">
+        <div className="logout-modal">
+            <h3>Confirm Logout</h3>
+
+            <p>Are you sure you want to logout?</p>
+
+            <div className="logout-modal-actions">
+                <button
+                    type="button"
+                    className="logout-cancel-btn"
+                    onClick={() => setShowLogoutConfirm(false)}
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    className="logout-confirm-btn"
+                    onClick={handleLogout}
+                >
+                    Yes, Logout
+                </button>
+            </div>
+        </div>
+    </div>
+)}
             </main>
         </div>
     );

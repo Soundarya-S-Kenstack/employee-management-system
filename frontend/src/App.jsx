@@ -16,6 +16,8 @@ import Attendance from "./components/Attendance";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AddEmployee from "./components/AddEmployee";
 import EditEmployee from "./components/EditEmployee";
+import Reports from "./components/Reports";
+
 
 function App() {
 
@@ -89,6 +91,16 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <EditEmployee />
+                        </ProtectedRoute>
+                    }
+                />
+
+                        {/* reports*/}
+                <Route
+                    path="/reports"
+                    element={
+                        <ProtectedRoute>
+                            <Reports />
                         </ProtectedRoute>
                     }
                 />

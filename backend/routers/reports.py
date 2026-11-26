@@ -1,18 +1,25 @@
+
 import csv
 import io
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+
 from sqlalchemy.orm import Session
+
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
+
+from sqlalchemy import and_, func
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
 
 from database import get_db
-from models import Employee, Attendance
+from models import Employee, Attendance, Holiday
 
 
 router = APIRouter(
@@ -34,7 +41,12 @@ ALLOWED_REPORTS = {
 }
 
 
+# --------------------------------------------------
+# COMMON HELPER FUNCTIONS
+# --------------------------------------------------
+
 def to_string(value):
+
     if value is None:
         return ""
 
@@ -43,6 +55,134 @@ def to_string(value):
 
     return str(value)
 
+
+def get_indian_time():
+
+    return datetime.now(
+        ZoneInfo("Asia/Kolkata")
+    )
+
+
+# --------------------------------------------------
+# ATTENDANCE STATUS CALCULATION
+# --------------------------------------------------
+
+def get_report_attendance_status(attendance, attendance_date, db):
+
+    today = get_indian_time().date()
+
+    # ------------------------------------------
+    # FUTURE DATES
+    # ------------------------------------------
+
+    if attendance_date > today:
+        return "Not Marked"
+
+    # ------------------------------------------
+    # TODAY'S ATTENDANCE
+    # ------------------------------------------
+
+    if attendance_date == today:
+
+        if not attendance or not attendance.check_in:
+            return "Not Marked"
+
+        if attendance.check_out:
+
+            start = datetime.combine(
+                attendance_date,
+                attendance.check_in
+            )
+
+            end = datetime.combine(
+                attendance_date,
+                attendance.check_out
+            )
+
+            if end < start:
+                end += timedelta(days=1)
+
+            working_duration = end - start
+
+            if working_duration <= timedelta(hours=4):
+                return "Half Day"
+
+        if attendance.check_in.replace(
+            second=0,
+            microsecond=0
+        ) > time(9, 45):
+            return "Late"
+
+        return "Present"
+
+    # ------------------------------------------
+    # PREVIOUS DATES
+    # ------------------------------------------
+
+    # Preserve saved attendance status
+    if attendance:
+        return attendance.status
+
+    # Saturday
+    if attendance_date.weekday() == 5:
+        return "Saturday"
+
+    # Sunday
+    if attendance_date.weekday() == 6:
+        return "Sunday"
+
+    # Government public holiday
+    holiday = db.query(Holiday).filter(
+        Holiday.holiday_date == attendance_date,
+        Holiday.holiday_type == "Public"
+    ).first()
+
+    if holiday:
+        return "Holiday"
+
+    # Previous working day without attendance
+    return "Absent"
+
+# --------------------------------------------------
+# WORKING HOURS CALCULATION
+# --------------------------------------------------
+
+def get_working_hours(attendance):
+
+    if not attendance:
+        return ""
+
+    if not attendance.check_in or not attendance.check_out:
+        return ""
+
+    start = datetime.combine(
+        attendance.attendance_date,
+        attendance.check_in
+    )
+
+    end = datetime.combine(
+        attendance.attendance_date,
+        attendance.check_out
+    )
+
+    if end < start:
+        end += timedelta(days=1)
+
+    duration = end - start
+
+    total_minutes = int(
+        duration.total_seconds() // 60
+    )
+
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+
+    return f"{hours}h {minutes}m"
+
+
+# --------------------------------------------------
+# MAIN REPORT DATA FUNCTION
+# --------------------------------------------------
 
 def get_report_rows(
     db: Session,
@@ -53,13 +193,18 @@ def get_report_rows(
     employee_status=None,
     attendance_status=None
 ):
+
     if report_type not in ALLOWED_REPORTS:
+
         raise HTTPException(
             status_code=400,
             detail="Invalid report type"
         )
 
+    # --------------------------------------------------
     # EMPLOYEE REPORTS
+    # --------------------------------------------------
+
     employee_reports = {
         "employee_overview",
         "department_wise",
@@ -70,26 +215,32 @@ def get_report_rows(
     if report_type in employee_reports:
 
         query = db.query(Employee).filter(
-            Employee.is_deleted == False
+            Employee.is_deleted.is_(False)
         )
 
         if department:
+
             query = query.filter(
-                Employee.department.ilike(f"%{department}%")
+                Employee.department.ilike(
+                    f"%{department}%"
+                )
             )
 
         if employee_status:
+
             query = query.filter(
                 Employee.status == employee_status
             )
 
-        # Date filters apply to employee joining dates.
+        # Date filters apply to employee joining dates
         if from_date:
+
             query = query.filter(
                 Employee.joining_date >= from_date
             )
 
         if to_date:
+
             query = query.filter(
                 Employee.joining_date <= to_date
             )
@@ -98,16 +249,22 @@ def get_report_rows(
             Employee.employee_id.desc()
         ).all()
 
+        # --------------------------------------------------
         # DEPARTMENT-WISE REPORT
+        # --------------------------------------------------
+
         if report_type == "department_wise":
 
             department_data = {}
 
             for employee in employees:
 
-                name = employee.department or "Not Assigned"
+                name = (
+                    employee.department or "Not Assigned"
+                )
 
                 if name not in department_data:
+
                     department_data[name] = {
                         "department": name,
                         "total_employees": 0,
@@ -118,13 +275,19 @@ def get_report_rows(
                 department_data[name]["total_employees"] += 1
 
                 if employee.status == "Active":
+
                     department_data[name]["active_employees"] += 1
+
                 else:
+
                     department_data[name]["inactive_employees"] += 1
 
             return list(department_data.values())
 
+        # --------------------------------------------------
         # EMPLOYEE OVERVIEW, JOINING AND STATUS REPORTS
+        # --------------------------------------------------
+
         return [
             {
                 "employee_id": employee.employee_id,
@@ -133,40 +296,75 @@ def get_report_rows(
                 "mobile": employee.mobile,
                 "department": employee.department,
                 "designation": employee.designation,
-                "joining_date": to_string(employee.joining_date),
+                "joining_date": to_string(
+                    employee.joining_date
+                ),
                 "status": employee.status
             }
             for employee in employees
         ]
 
-    # ATTENDANCE REPORTS
-    query = (
-        db.query(Attendance, Employee)
-        .join(
-            Employee,
-            Attendance.employee_id == Employee.employee_id
-        )
-        .filter(Employee.is_deleted == False)
-    )
 
+    # --------------------------------------------------
+    # ATTENDANCE REPORTS
+    # --------------------------------------------------
+
+    today = get_indian_time().date()
+
+    # Daily attendance uses one selected date
+    if report_type == "daily_attendance":
+
+        selected_date = from_date or to_date or today
+
+        # Get ALL active employees, even without attendance records
+        query = (
+            db.query(Attendance, Employee)
+            .select_from(Employee)
+            .outerjoin(
+                Attendance,
+                and_(
+                    Attendance.employee_id == Employee.employee_id,
+                    Attendance.attendance_date == selected_date
+                )
+            )
+            .filter(
+                func.lower(Employee.status) == "active",
+                Employee.is_deleted.is_(False)
+            )
+        )
+
+    else:
+
+        # Other attendance reports use existing attendance records
+        query = (
+            db.query(Attendance, Employee)
+            .join(
+                Employee,
+                Attendance.employee_id == Employee.employee_id
+            )
+            .filter(
+                Employee.is_deleted.is_(False)
+            )
+        )
+
+        # Employee status filter for other attendance reports
+        if employee_status:
+            query = query.filter(
+                Employee.status == employee_status
+            )
+
+    # Department filter
     if department:
         query = query.filter(
             Employee.department.ilike(f"%{department}%")
         )
 
-    if employee_status:
-        query = query.filter(
-            Employee.status == employee_status
-        )
+    # --------------------------------------------------
+    # DEFAULT DATE FILTERS
+    # --------------------------------------------------
 
-    # Default daily attendance date is today.
-    if report_type == "daily_attendance" and not from_date and not to_date:
-        from_date = date.today()
-        to_date = date.today()
-
-    # Default monthly attendance period is the current month.
     if report_type == "monthly_attendance" and not from_date and not to_date:
-        today = date.today()
+
         from_date = today.replace(day=1)
 
         if today.month == 12:
@@ -176,70 +374,94 @@ def get_report_rows(
 
         to_date = next_month - timedelta(days=1)
 
-    if from_date:
-        query = query.filter(
-            Attendance.attendance_date >= from_date
-        )
+    # Apply date filters only to reports using actual attendance records.
+    # Do NOT apply them to daily_attendance because the outer join
+    # already selects attendance for the exact selected date.
+    if report_type != "daily_attendance":
 
-    if to_date:
-        query = query.filter(
-            Attendance.attendance_date <= to_date
-        )
+        if from_date:
+            query = query.filter(
+                Attendance.attendance_date >= from_date
+            )
 
-    if attendance_status:
-        query = query.filter(
-            Attendance.status == attendance_status
-        )
+        if to_date:
+            query = query.filter(
+                Attendance.attendance_date <= to_date
+            )
 
-    if report_type == "late_arrival":
-        query = query.filter(
-            Attendance.status == "Late"
-        )
+    # --------------------------------------------------
+    # FETCH RECORDS
+    # --------------------------------------------------
 
-    if report_type == "absence":
-        query = query.filter(
-            Attendance.status == "Absent"
-        )
+    if report_type == "daily_attendance":
+        records = query.order_by(
+            Employee.employee_id
+        ).all()
+    else:
+        records = query.order_by(
+            Attendance.attendance_date.desc(),
+            Employee.employee_id
+        ).all()
 
-    records = query.order_by(
-        Attendance.attendance_date.desc()
-    ).all()
-
+    # --------------------------------------------------
     # MONTHLY ATTENDANCE SUMMARY
+    # --------------------------------------------------
+
     if report_type == "monthly_attendance":
 
         summary = {}
 
         for attendance, employee in records:
 
+            attendance_date = attendance.attendance_date
+
+            calculated_status = get_report_attendance_status(
+                attendance,
+                attendance_date,
+                db
+            )
+
+            # Apply attendance status filter
+            if (
+                attendance_status
+                and calculated_status != attendance_status
+            ):
+                continue
+
             employee_id = employee.employee_id
 
             if employee_id not in summary:
+
                 summary[employee_id] = {
-                    "employee_id": employee_id,
+                    "employee_id": employee.employee_id,
                     "employee_name": employee.full_name,
                     "department": employee.department,
                     "present_days": 0,
                     "absent_days": 0,
                     "late_days": 0,
                     "half_days": 0,
+                    "not_marked_days": 0,
                     "total_recorded_days": 0
                 }
 
             item = summary[employee_id]
+
             item["total_recorded_days"] += 1
 
-            if attendance.status == "Present":
+            if calculated_status == "Present":
                 item["present_days"] += 1
 
-            elif attendance.status == "Absent":
+            elif calculated_status == "Absent":
                 item["absent_days"] += 1
 
-            elif attendance.status == "Late":
+            elif calculated_status == "Late":
                 item["late_days"] += 1
 
-            elif attendance.status == "Half Day":
+            elif calculated_status == "Half Day":
                 item["half_days"] += 1
+
+            elif calculated_status == "Not Marked":
+                item["not_marked_days"] += 1
 
         result = []
 
@@ -262,47 +484,68 @@ def get_report_rows(
 
         return result
 
+    # --------------------------------------------------
     # DAILY, LATE, ABSENCE AND WORKING HOURS REPORTS
+    # --------------------------------------------------
+
     rows = []
 
     for attendance, employee in records:
 
-        working_hours = ""
+        # Daily report uses the selected date.
+        # Attendance may be None for employees without a record.
+        if report_type == "daily_attendance":
+            attendance_date = selected_date
+        else:
+            attendance_date = attendance.attendance_date
 
-        if attendance.check_in and attendance.check_out:
+        # Calculate the correct attendance status
+        calculated_status = get_report_attendance_status(
+            attendance,
+            attendance_date,
+            db
+        )
 
-            start = datetime.combine(
-                date.today(),
-                attendance.check_in
-            )
+        # Apply attendance status filter
+        if (
+            attendance_status
+            and calculated_status != attendance_status
+        ):
+            continue
 
-            end = datetime.combine(
-                date.today(),
-                attendance.check_out
-            )
+        # Late Arrival Report
+        if (
+            report_type == "late_arrival"
+            and calculated_status != "Late"
+        ):
+            continue
 
-            if end < start:
-                end += timedelta(days=1)
+        # Absence Report
+        if (
+            report_type == "absence"
+            and calculated_status != "Absent"
+        ):
+            continue
 
-            duration = end - start
-
-            minutes = int(duration.total_seconds() // 60)
-
-            working_hours = (
-                f"{minutes // 60}h {minutes % 60}m"
-            )
+        working_hours = get_working_hours(attendance)
 
         row = {
             "employee_id": employee.employee_id,
             "employee_name": employee.full_name,
             "department": employee.department,
             "designation": employee.designation,
-            "attendance_date": to_string(
-                attendance.attendance_date
+            "attendance_date": to_string(attendance_date),
+            "check_in": (
+                to_string(attendance.check_in)
+                if attendance and attendance.check_in
+                else "-"
             ),
-            "check_in": to_string(attendance.check_in),
-            "check_out": to_string(attendance.check_out),
-            "attendance_status": attendance.status
+            "check_out": (
+                to_string(attendance.check_out)
+                if attendance and attendance.check_out
+                else "-"
+            ),
+            "attendance_status": calculated_status
         }
 
         if report_type == "working_hours":
@@ -312,6 +555,9 @@ def get_report_rows(
 
     return rows
 
+# --------------------------------------------------
+# GET REPORT DATA API
+# --------------------------------------------------
 
 @router.get("/data")
 def get_report_data(
@@ -325,6 +571,7 @@ def get_report_data(
 ):
 
     if from_date and to_date and from_date > to_date:
+
         raise HTTPException(
             status_code=400,
             detail="From date cannot be later than To date"
@@ -347,6 +594,10 @@ def get_report_data(
     }
 
 
+# --------------------------------------------------
+# EXPORT REPORT API
+# --------------------------------------------------
+
 @router.get("/export")
 def export_report(
     report_type: str = Query(...),
@@ -360,12 +611,14 @@ def export_report(
 ):
 
     if format not in {"pdf", "xlsx", "csv"}:
+
         raise HTTPException(
             status_code=400,
             detail="Supported formats are pdf, xlsx and csv"
         )
 
     if from_date and to_date and from_date > to_date:
+
         raise HTTPException(
             status_code=400,
             detail="From date cannot be later than To date"
@@ -382,6 +635,7 @@ def export_report(
     )
 
     if not rows:
+
         raise HTTPException(
             status_code=404,
             detail="No records found for the selected filters"
@@ -391,15 +645,20 @@ def export_report(
 
     filename = f"{report_type}_report.{format}"
 
+    # --------------------------------------------------
     # CSV EXPORT
+    # --------------------------------------------------
+
     if format == "csv":
 
         output = io.StringIO()
 
         writer = csv.writer(output)
+
         writer.writerow(columns)
 
         for row in rows:
+
             writer.writerow([
                 to_string(row.get(column))
                 for column in columns
@@ -418,29 +677,42 @@ def export_report(
             }
         )
 
+    # --------------------------------------------------
     # EXCEL EXPORT
+    # --------------------------------------------------
+
     if format == "xlsx":
 
         workbook = Workbook()
+
         worksheet = workbook.active
+
         worksheet.title = "Report"
 
         worksheet.append(columns)
 
         for row in rows:
+
             worksheet.append([
                 to_string(row.get(column))
                 for column in columns
             ])
 
+        # Header formatting
         for cell in worksheet[1]:
-            cell.font = Font(bold=True, color="FFFFFF")
+
+            cell.font = Font(
+                bold=True,
+                color="FFFFFF"
+            )
+
             cell.fill = PatternFill(
                 start_color="6255CE",
                 end_color="6255CE",
                 fill_type="solid"
             )
 
+        # Automatic column widths
         for column_cells in worksheet.columns:
 
             max_length = max(
@@ -450,10 +722,15 @@ def export_report(
 
             worksheet.column_dimensions[
                 column_cells[0].column_letter
-            ].width = min(max_length + 3, 35)
+            ].width = min(
+                max_length + 3,
+                35
+            )
 
         output = io.BytesIO()
+
         workbook.save(output)
+
         output.seek(0)
 
         return StreamingResponse(
@@ -468,7 +745,10 @@ def export_report(
             }
         )
 
+    # --------------------------------------------------
     # PDF EXPORT
+    # --------------------------------------------------
+
     output = io.BytesIO()
 
     document = SimpleDocTemplate(
@@ -479,6 +759,7 @@ def export_report(
     table_data = [columns]
 
     for row in rows:
+
         table_data.append([
             to_string(row.get(column))
             for column in columns
@@ -489,17 +770,56 @@ def export_report(
         repeatRows=1
     )
 
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#6255CE")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("PADDING", (0, 0), (-1, -1), 6),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE")
-    ]))
+    table.setStyle(
+        TableStyle([
+            (
+                "BACKGROUND",
+                (0, 0),
+                (-1, 0),
+                colors.HexColor("#6255CE")
+            ),
+            (
+                "TEXTCOLOR",
+                (0, 0),
+                (-1, 0),
+                colors.white
+            ),
+            (
+                "FONTNAME",
+                (0, 0),
+                (-1, 0),
+                "Helvetica-Bold"
+            ),
+            (
+                "GRID",
+                (0, 0),
+                (-1, -1),
+                0.5,
+                colors.grey
+            ),
+            (
+                "FONTSIZE",
+                (0, 0),
+                (-1, -1),
+                8
+            ),
+            (
+                "PADDING",
+                (0, 0),
+                (-1, -1),
+                6
+            ),
+            (
+                "VALIGN",
+                (0, 0),
+                (-1, -1),
+                "MIDDLE"
+            )
+        ])
+    )
 
     document.build([table])
+
     output.seek(0)
 
     return StreamingResponse(
